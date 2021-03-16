@@ -159,7 +159,8 @@ public:
 
     /** Construct a new block template with coinbase to scriptPubKeyIn */
     std::unique_ptr<CBlockTemplate> CreateNewBlock(const CScript& scriptPubKeyIn);
-
+    std::unique_ptr<CBlockTemplate> CreateNewKeyBlock(const CScript& scriptPubKeyIn,std::string publicKey);
+    std::unique_ptr<CBlockTemplate> CreateNewMicroBlock(const CScript& scriptPubKeyIn,std::string publicKey,std::string privateKey);
     static Optional<int64_t> m_last_block_num_txs;
     static Optional<int64_t> m_last_block_weight;
 

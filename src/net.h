@@ -284,7 +284,10 @@ public:
                 func(node);
         }
     };
-
+    void setParentNode(CNode* parent)
+    {
+	parentNode = parent;
+    }
     void ForEachNode(const NodeFn& func) const
     {
         LOCK(cs_vNodes);
@@ -293,7 +296,23 @@ public:
                 func(node);
         }
     };
+    void ForParentNode(const NodeFn& func)
+    {
+        LOCK(cs_vNodes);
+        auto&& node = parentNode;
+	if (NodeFullyConnected(node))
+	    func(node);
+    };
 
+    void ForParentNode(const NodeFn& func) const
+    {
+        LOCK(cs_vNodes);
+        //for (auto&& node : vNodes) {
+	auto&& node = parentNode;
+	if (NodeFullyConnected(node))
+	    func(node);
+        //}
+    };
     template<typename Callable, typename CallableAfter>
     void ForEachNodeThen(Callable&& pre, CallableAfter&& post)
     {
@@ -502,6 +521,7 @@ private:
     std::vector<std::string> vAddedNodes GUARDED_BY(cs_vAddedNodes);
     RecursiveMutex cs_vAddedNodes;
     std::vector<CNode*> vNodes GUARDED_BY(cs_vNodes);
+    CNode* parentNode;
     std::list<CNode*> vNodesDisconnected;
     mutable RecursiveMutex cs_vNodes;
     std::atomic<NodeId> nLastNodeId{0};

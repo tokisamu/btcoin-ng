@@ -117,6 +117,7 @@ extern std::condition_variable g_best_block_cv;
 extern uint256 g_best_block;
 extern std::atomic_bool fImporting;
 extern std::atomic_bool fReindex;
+typedef std::unordered_map<uint256, uint256, BlockHasher> PublicKeyMap;
 /** Whether there are dedicated script-checking threads running.
  * False indicates all script checking is done on the main threadMessageHandler thread.
  */
@@ -379,7 +380,7 @@ private:
 
 public:
     BlockMap m_block_index GUARDED_BY(cs_main);
-
+    PublicKeyMap m_publicKey_index GUARDED_BY(cs_main);
     /** In order to efficiently track invalidity of headers, we keep the set of
       * blocks which we tried to connect and found to be invalid here (ie which
       * were set to BLOCK_FAILED_VALID since the last restart). We can then

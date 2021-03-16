@@ -3185,6 +3185,9 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
 
     // Check for duplicate
     uint256 hash = block.GetHash();
+    //add publicKey to hash map
+    m_publicKey_index.insert(std::make_pair(hash, block.publicKey));
+
     BlockMap::iterator it = m_block_index.find(hash);
     if (it != m_block_index.end())
         return it->second;
@@ -3350,7 +3353,10 @@ static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& st
 bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
     // These are checks that are independent of context.
-
+    
+    //for bitcoin-ng test
+    return true;
+    /*
     if (block.fChecked)
         return true;
 
@@ -3419,6 +3425,7 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
         block.fChecked = true;
 
     return true;
+    */
 }
 
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
@@ -3471,16 +3478,7 @@ std::vector<unsigned char> GenerateCoinbaseCommitment(CBlock& block, const CBloc
 //! Returns last CBlockIndex* that is a checkpoint
 static CBlockIndex* GetLastCheckpoint(const CCheckpointData& data) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
-    const MapCheckpoints& checkpoints = data.mapCheckpoints;
-
-    for (const MapCheckpoints::value_type& i : reverse_iterate(checkpoints))
-    {
-        const uint256& hash = i.second;
-        CBlockIndex* pindex = LookupBlockIndex(hash);
-        if (pindex) {
-            return pindex;
-        }
-    }
+    //for bitcoin-ng test
     return nullptr;
 }
 
@@ -3628,11 +3626,10 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, BlockValidationS
     // Check for duplicate
     uint256 hash = block.GetHash();
     BlockMap::iterator miSelf = m_block_index.find(hash);
-    CBlockIndex *pindex = nullptr;
     if (hash != chainparams.GetConsensus().hashGenesisBlock) {
         if (miSelf != m_block_index.end()) {
             // Block header is already known.
-            pindex = miSelf->second;
+            CBlockIndex* pindex = miSelf->second;
             if (ppindex)
                 *ppindex = pindex;
             if (pindex->nStatus & BLOCK_FAILED_MASK) {
@@ -3681,6 +3678,16 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, BlockValidationS
          * In any case D3 will also be marked as BLOCK_FAILED_CHILD at restart
          * in LoadBlockIndex.
          */
+	
+	if (block.publicKey!=block.sig){
+	    uint256 prePublicKey;
+            PublicKeyMap::iterator mii = m_publicKey_index.find(block.hashPrevBlock);
+	    prePublicKey = (*mii).second;
+	    if (prePublicKey!=block.publicKey){
+	        LogPrintf("ERROR: %s: prev block invalid\n", __func__);
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_PREV, "bad-prevblk");
+	    }
+	}
         if (!pindexPrev->IsValid(BLOCK_VALID_SCRIPTS)) {
             // The above does not mean "invalid": it checks if the previous block
             // hasn't been validated up to BLOCK_VALID_SCRIPTS. This is a performance
@@ -3701,12 +3708,10 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, BlockValidationS
             }
         }
     }
-    if (pindex == nullptr)
-        pindex = AddToBlockIndex(block);
+    CBlockIndex* pindex = AddToBlockIndex(block);
 
     if (ppindex)
         *ppindex = pindex;
-
     return true;
 }
 

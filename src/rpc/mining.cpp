@@ -135,7 +135,66 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
     block_hash = block.GetHash();
     return true;
 }
+static bool GenerateMicroBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tries, unsigned int& extra_nonce, uint256& block_hash)
+{
+    block_hash.SetNull();
 
+    {
+        LOCK(cs_main);
+        IncrementExtraNonce(&block, ::ChainActive().Tip(), extra_nonce);
+    }
+
+    CChainParams chainparams(Params());
+    //micro block doesn't need pow
+    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus()) && !ShutdownRequested()) {
+        ++block.nNonce;
+        --max_tries;
+    }
+    if (max_tries == 0 || ShutdownRequested()) {
+        return false;
+    }
+    if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
+        return true;
+    }
+
+    std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
+    if (!chainman.ProcessNewBlock(chainparams, shared_pblock, true, nullptr)) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+    }
+
+    block_hash = block.GetHash();
+    return true;
+}
+static bool GenerateKeyBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tries, unsigned int& extra_nonce, uint256& block_hash)
+{
+    block_hash.SetNull();
+
+    {
+        LOCK(cs_main);
+        IncrementExtraNonce(&block, ::ChainActive().Tip(), extra_nonce);
+    }
+
+    CChainParams chainparams(Params());
+    //micro block doesn't need pow
+    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus()) && !ShutdownRequested()) {
+        ++block.nNonce;
+        --max_tries;
+    }
+    if (max_tries == 0 || ShutdownRequested()) {
+        return false;
+    }
+    if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
+        return true;
+    }
+
+    std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
+    if (!chainman.ProcessNewBlock(chainparams, shared_pblock, true, nullptr)) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+    }
+
+    block_hash = block.GetHash();
+    return true;
+}
 static UniValue generateBlocks(ChainstateManager& chainman, const CTxMemPool& mempool, const CScript& coinbase_script, int nGenerate, uint64_t nMaxTries)
 {
     int nHeightEnd = 0;
@@ -167,7 +226,68 @@ static UniValue generateBlocks(ChainstateManager& chainman, const CTxMemPool& me
     }
     return blockHashes;
 }
+static UniValue generateMicroBlocks(ChainstateManager& chainman, const CTxMemPool& mempool, const CScript& coinbase_script, int nGenerate, uint64_t nMaxTries,std::string publicKey, std::string privateKey)
+{
+    int nHeightEnd = 0;
+    int nHeight = 0;
 
+    {   // Don't keep cs_main locked
+        LOCK(cs_main);
+        nHeight = ::ChainActive().Height();
+        nHeightEnd = nHeight+nGenerate;
+    }
+    unsigned int nExtraNonce = 0;
+    UniValue blockHashes(UniValue::VARR);
+    while (nHeight < nHeightEnd && !ShutdownRequested())
+    {
+        std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(mempool, Params()).CreateNewMicroBlock(coinbase_script,publicKey,privateKey));
+        if (!pblocktemplate.get())
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
+        CBlock *pblock = &pblocktemplate->block;
+
+        uint256 block_hash;
+        if (!GenerateMicroBlock(chainman, *pblock, nMaxTries, nExtraNonce, block_hash)) {
+            break;
+        }
+
+        if (!block_hash.IsNull()) {
+            ++nHeight;
+            blockHashes.push_back(block_hash.GetHex());
+        }
+    }
+    return blockHashes;
+}
+static UniValue generateKeyBlocks(ChainstateManager& chainman, const CTxMemPool& mempool, const CScript& coinbase_script, int nGenerate, uint64_t nMaxTries,std::string publicKey)
+{
+    int nHeightEnd = 0;
+    int nHeight = 0;
+
+    {   // Don't keep cs_main locked
+        LOCK(cs_main);
+        nHeight = ::ChainActive().Height();
+        nHeightEnd = nHeight+nGenerate;
+    }
+    unsigned int nExtraNonce = 0;
+    UniValue blockHashes(UniValue::VARR);
+    while (nHeight < nHeightEnd && !ShutdownRequested())
+    {
+        std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(mempool, Params()).CreateNewKeyBlock(coinbase_script,publicKey));
+        if (!pblocktemplate.get())
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
+        CBlock *pblock = &pblocktemplate->block;
+
+        uint256 block_hash;
+        if (!GenerateKeyBlock(chainman, *pblock, nMaxTries, nExtraNonce, block_hash)) {
+            break;
+        }
+
+        if (!block_hash.IsNull()) {
+            ++nHeight;
+            blockHashes.push_back(block_hash.GetHex());
+        }
+    }
+    return blockHashes;
+}
 static bool getScriptFromDescriptor(const std::string& descriptor, CScript& script, std::string& error)
 {
     FlatSigningProvider key_provider;
@@ -290,7 +410,87 @@ static RPCHelpMan generatetoaddress()
 },
     };
 }
+static RPCHelpMan generateMicroblock()
+{
+    return RPCHelpMan{"generateMicroblock",
+                "\nMine microblocks immediately to a specified address (before the RPC call returns)\n",
+                {
+                    {"nblocks", RPCArg::Type::NUM, RPCArg::Optional::NO, "How many blocks are generated immediately."},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The address to send the newly generated bitcoin to."},
+		    {"publicKey", RPCArg::Type::STR, RPCArg::Optional::NO, "The publicKey to send the newly generated bitcoin to."},
+		    {"privateKey", RPCArg::Type::STR, RPCArg::Optional::NO, "The privateKey to send the newly generated bitcoin to."},
+                    {"maxtries", RPCArg::Type::NUM, /* default */ ToString(DEFAULT_MAX_TRIES), "How many iterations to try."},
+                },
+                RPCResult{
+                    RPCResult::Type::ARR, "", "hashes of blocks generated",
+                    {
+                        {RPCResult::Type::STR_HEX, "", "blockhash"},
+                    }},
+                RPCExamples{
+            "\nGenerate 11 blocks to myaddress\n"
+            + HelpExampleCli("generateMicroblock", "11 \"myaddress\"")
+            + "If you are using the " PACKAGE_NAME " wallet, you can get a new address to send the newly generated bitcoin to with:\n"
+            + HelpExampleCli("getnewaddress", "")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    const int num_blocks{request.params[0].get_int()};
+    const uint64_t max_tries{request.params[4].isNull() ? DEFAULT_MAX_TRIES : request.params[4].get_int()};
 
+    CTxDestination destination = DecodeDestination(request.params[1].get_str());
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
+    }
+
+    const CTxMemPool& mempool = EnsureMemPool(request.context);
+    ChainstateManager& chainman = EnsureChainman(request.context);
+
+    CScript coinbase_script = GetScriptForDestination(destination);
+
+    return generateMicroBlocks(chainman, mempool, coinbase_script, num_blocks, max_tries,request.params[2].get_str(),request.params[3].get_str());
+},
+    };
+}
+static RPCHelpMan generateKeyblock()
+{
+    return RPCHelpMan{"generateKeyblock",
+                "\nMine keyblocks immediately to a specified address (before the RPC call returns)\n",
+                {
+                    {"nblocks", RPCArg::Type::NUM, RPCArg::Optional::NO, "How many blocks are generated immediately."},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The address to send the newly generated bitcoin to."},
+		    {"publicKey", RPCArg::Type::STR, RPCArg::Optional::NO, "The publicKey to send the newly generated bitcoin to."},
+                    {"maxtries", RPCArg::Type::NUM, /* default */ ToString(DEFAULT_MAX_TRIES), "How many iterations to try."},
+                },
+                RPCResult{
+                    RPCResult::Type::ARR, "", "hashes of blocks generated",
+                    {
+                        {RPCResult::Type::STR_HEX, "", "blockhash"},
+                    }},
+                RPCExamples{
+            "\nGenerate 11 blocks to myaddress\n"
+            + HelpExampleCli("generateKeyblock", "11 \"myaddress\"")
+            + "If you are using the " PACKAGE_NAME " wallet, you can get a new address to send the newly generated bitcoin to with:\n"
+            + HelpExampleCli("getnewaddress", "")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    const int num_blocks{request.params[0].get_int()};
+    const uint64_t max_tries{request.params[3].isNull() ? DEFAULT_MAX_TRIES : request.params[3].get_int()};
+
+    CTxDestination destination = DecodeDestination(request.params[1].get_str());
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
+    }
+
+    const CTxMemPool& mempool = EnsureMemPool(request.context);
+    ChainstateManager& chainman = EnsureChainman(request.context);
+
+    CScript coinbase_script = GetScriptForDestination(destination);
+
+    return generateKeyBlocks(chainman, mempool, coinbase_script, num_blocks, max_tries,request.params[2].get_str());
+},
+    };
+}
 static RPCHelpMan generateblock()
 {
     return RPCHelpMan{"generateblock",
@@ -1226,7 +1426,8 @@ static const CRPCCommand commands[] =
     { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} },
     { "generating",         "generatetodescriptor",   &generatetodescriptor,   {"num_blocks","descriptor","maxtries"} },
     { "generating",         "generateblock",          &generateblock,          {"output","transactions"} },
-
+    { "generating",         "generateMicroblock",          &generateMicroblock,          {"nblocks","address","publicKey","privateKey","maxtries"} },
+    { "generating",         "generateKeyblock",          &generateKeyblock,          {"nblocks","address","publicKey","maxtries"} },
     { "util",               "estimatesmartfee",       &estimatesmartfee,       {"conf_target", "estimate_mode"} },
 
     { "hidden",             "estimaterawfee",         &estimaterawfee,         {"conf_target", "threshold"} },
