@@ -176,6 +176,8 @@ public:
     //! block header
     int32_t nVersion{0};
     uint256 hashMerkleRoot{};
+    uint256 publicKey{};
+    uint256 sig{};
     uint32_t nTime{0};
     uint32_t nBits{0};
     uint32_t nNonce{0};
@@ -193,6 +195,8 @@ public:
     explicit CBlockIndex(const CBlockHeader& block)
         : nVersion{block.nVersion},
           hashMerkleRoot{block.hashMerkleRoot},
+          publicKey{block.publicKey},
+          sig{block.sig},
           nTime{block.nTime},
           nBits{block.nBits},
           nNonce{block.nNonce}
@@ -224,6 +228,8 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.publicKey = publicKey;
+        block.sig = sig;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -349,6 +355,8 @@ public:
         READWRITE(obj.nTime);
         READWRITE(obj.nBits);
         READWRITE(obj.nNonce);
+        READWRITE(obj.publicKey);
+        READWRITE(obj.sig);
     }
 
     uint256 GetBlockHash() const
@@ -357,6 +365,8 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
+        block.publicKey  = publicKey;
+        block.sig  = sig;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;

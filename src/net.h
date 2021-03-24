@@ -187,7 +187,7 @@ class NetEventsInterface;
 class CConnman
 {
 public:
-
+    int maxHeight = 0;
     enum NumConnections {
         CONNECTIONS_NONE = 0,
         CONNECTIONS_IN = (1U << 0),
@@ -211,6 +211,7 @@ public:
         unsigned int nReceiveFloodSize = 0;
         uint64_t nMaxOutboundTimeframe = 0;
         uint64_t nMaxOutboundLimit = 0;
+	double totalBandwidth = 0;
         int64_t m_peer_connect_timeout = DEFAULT_PEER_CONNECT_TIMEOUT;
         std::vector<std::string> vSeedNodes;
         std::vector<NetWhitelistPermissions> vWhitelistedRange;
@@ -276,6 +277,7 @@ public:
     void PushMessage(CNode* pnode, CSerializedNetMsg&& msg);
 
     using NodeFn = std::function<void(CNode*)>;
+    using NodeFn2 = std::function<void(CNode*,NodeId)>;
     void ForEachNode(const NodeFn& func)
     {
         LOCK(cs_vNodes);
@@ -284,9 +286,10 @@ public:
                 func(node);
         }
     };
-    void setParentNode(CNode* parent)
+    void setParentNode(NodeId parent)
     {
-	parentNode = parent;
+	LOCK(cs_vNodes);
+	parentId = parent;
     }
     void ForEachNode(const NodeFn& func) const
     {
@@ -296,21 +299,22 @@ public:
                 func(node);
         }
     };
-    void ForParentNode(const NodeFn& func)
+    void ForParentNode(const NodeFn2& func)
     {
         LOCK(cs_vNodes);
-        auto&& node = parentNode;
-	if (NodeFullyConnected(node))
-	    func(node);
+        for (auto&& node : vNodes) {
+            if (NodeFullyConnected(node))
+                func(node,parentId);
+        }
     };
 
-    void ForParentNode(const NodeFn& func) const
+    void ForParentNode(const NodeFn2& func) const
     {
         LOCK(cs_vNodes);
-        //for (auto&& node : vNodes) {
-	auto&& node = parentNode;
-	if (NodeFullyConnected(node))
-	    func(node);
+        for (auto&& node : vNodes) {
+            if (NodeFullyConnected(node))
+                func(node,parentId);
+        }
         //}
     };
     template<typename Callable, typename CallableAfter>
@@ -521,7 +525,7 @@ private:
     std::vector<std::string> vAddedNodes GUARDED_BY(cs_vAddedNodes);
     RecursiveMutex cs_vAddedNodes;
     std::vector<CNode*> vNodes GUARDED_BY(cs_vNodes);
-    CNode* parentNode;
+    NodeId parentId GUARDED_BY(cs_vNodes);
     std::list<CNode*> vNodesDisconnected;
     mutable RecursiveMutex cs_vNodes;
     std::atomic<NodeId> nLastNodeId{0};
@@ -865,7 +869,7 @@ class CNode
 public:
     std::unique_ptr<TransportDeserializer> m_deserializer;
     std::unique_ptr<TransportSerializer> m_serializer;
-
+    int isMicroblock=0;
     // socket
     std::atomic<ServiceFlags> nServices{NODE_NONE};
     SOCKET hSocket GUARDED_BY(cs_hSocket);

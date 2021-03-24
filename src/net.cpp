@@ -2823,10 +2823,19 @@ bool CConnman::DisconnectNode(NodeId id)
     return false;
 }
 
+std::string tostring(const uint64_t& t)
+{
+    std::ostringstream ss;
+    ss << t;
+    return ss.str();
+}
+
 void CConnman::RecordBytesRecv(uint64_t bytes)
 {
     LOCK(cs_totalBytesRecv);
     nTotalBytesRecv += bytes;
+    std::string mystring = tostring(nTotalBytesRecv);
+    LogPrintf("My bandwidth is %s\n", mystring);
 }
 
 void CConnman::RecordBytesSent(uint64_t bytes)
