@@ -49,6 +49,8 @@ class Network:
                 self.network = nx.erdos_renyi_graph(self.n_nodes, 0.5)
         elif self.topology == 'complete':
             self.network = nx.complete_graph(self.n_nodes)
+        elif self.topology == 'ba':
+            self.network = nx.barabasi_albert_graph(self.n_nodes, 8, seed=None)
         elif self.topology == 'grid':
             side = math.floor(math.sqrt(self.n_nodes))
             self.network = nx.grid_2d_graph(side, side)
@@ -271,7 +273,7 @@ def main():
     """
     commands = []
     address = []
-    net = Network(n_nodes=9, topology='grid', connect_nodes=True)
+    net = Network(n_nodes=100, topology='ba', connect_nodes=True)
     centerNode = round(net.n_nodes/2)
     for i in range(0,net.n_nodes):
         command =("node"+str(i)+" -generate 1");
@@ -298,7 +300,7 @@ def main():
     result = executeCommand2(command,net)
     cnt = 10
     while(cnt):
-        for repeat in range(0,10):
+        for repeat in range(0,1):
             time.sleep(1)
             for i in range(0,net.n_nodes):
                 if i==centerNode:
@@ -310,16 +312,25 @@ def main():
                 result = executeCommand2(command,net)
         command =("node"+str(centerNode)+" generateMicroblock 1  "+address[centerNode]+" 998 123");
         result = executeCommand2(command,net)
-        for i in range(0,net.n_nodes):
+        for i in range(0,10):
             command =("node"+str(i)+" getwalletinfo");
             result = executeCommand2(command,net)
         cnt-=1
         #print(cnt)
+    for i in range(0,10):
+        command =("node"+str(centerNode)+" generateMicroblock 1  "+address[centerNode]+" 998 123");
+        result = executeCommand2(command,net)
+        time.sleep(3)
+    '''
+    for i in range(0,net.n_nodes):
+        command =("node"+str(i)+" -generate 1");
+        result = executeCommand(command,net)
+        address.append(result[12:-1])
+        time.sleep(0.5)
+        #result = executeCommand(command,net)
+    '''
     print("finished")
-    try:
-        inp = input("⟩⟩ ").strip()
-    except KeyboardInterrupt:
-        net.close()
+    net.close()
 
 
 if __name__ == '__main__':
