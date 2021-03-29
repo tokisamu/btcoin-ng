@@ -69,8 +69,8 @@ class Network:
         else:
             print("Topology is not recognized!")
             self.close()
-        nx.draw_networkx(self.network)
-        plt.show()
+        #nx.draw_networkx(self.network)
+        #plt.show()
 
         # create the actual network
         print("Setting up the network...")
@@ -273,7 +273,7 @@ def main():
     """
     commands = []
     address = []
-    net = Network(n_nodes=100, topology='ba', connect_nodes=True)
+    net = Network(n_nodes=399, topology='ba', connect_nodes=True)
     centerNode = round(net.n_nodes/2)
     for i in range(0,net.n_nodes):
         command =("node"+str(i)+" -generate 1");
@@ -298,7 +298,7 @@ def main():
     time.sleep(2)
     command =("node"+str(centerNode)+" generateKeyblock 1  "+address[centerNode]+" 998");
     result = executeCommand2(command,net)
-    cnt = 10
+    cnt = 1000
     while(cnt):
         for repeat in range(0,1):
             time.sleep(1)
@@ -312,11 +312,11 @@ def main():
                 result = executeCommand2(command,net)
         command =("node"+str(centerNode)+" generateMicroblock 1  "+address[centerNode]+" 998 123");
         result = executeCommand2(command,net)
-        for i in range(0,10):
+        for i in range(0,3):
             command =("node"+str(i)+" getwalletinfo");
             result = executeCommand2(command,net)
         cnt-=1
-        #print(cnt)
+        print(cnt)
     for i in range(0,10):
         command =("node"+str(centerNode)+" generateMicroblock 1  "+address[centerNode]+" 998 123");
         result = executeCommand2(command,net)
