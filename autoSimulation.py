@@ -251,7 +251,7 @@ def executeCommand2(command,net):
     result = subprocess.run(command, shell=True, check=True)
     return 1
 # TODO create argparser later on
-def main():
+def main(argv):
     """
     Create and manage a local network of bitcoin nodes.
     ----
@@ -271,6 +271,13 @@ def main():
     node(n/2) -generateMicroblock address publickey private
     repeat 100times
     """
+    nodes = 50
+    topo = "ba"
+    rounds = 1000
+    if len(argv)==3:
+        nodes = int(argv[0])
+        topo = str(argv[1])
+        rounds = int(argv[2])
     commands = []
     address = []
     net = Network(n_nodes=399, topology='ba', connect_nodes=True)
@@ -334,4 +341,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
