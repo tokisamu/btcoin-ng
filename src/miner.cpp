@@ -348,11 +348,38 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewMicroBlock(const CScrip
 
     // Fill in header
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
-    pblock->publicKey  = uint256S(publicKey);
-    pblock->sig  = uint256S(privateKey);
     UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus());
     pblock->nNonce         = 0;
+    
+    //sign the header
+    uint256 headerhash = pblock->GetBlockHeader().GetHash();
+    std::vector<unsigned char> buffer;
+    for(int i=0;i<32;i++)
+    {
+        if(i>=privateKey.length())
+            buffer.push_back(0);
+        else buffer.push_back(privateKey[i]);
+    }
+    CKey key1;
+    bool valid = false;
+    //key1.Set(buffer.begin(),buffer.end(),valid);
+    key1.MakeNewKey(true);
+    std::vector<unsigned char> signedHeader;
+    key1.Sign(headerhash,signedHeader);
+    //convert from unsigned to hex//
+    std::string signature(signedHeader.begin(),signedHeader.end());
+    char converted[1024];
+    for(int i=0;i<signature.length();i++) {
+        sprintf(&converted[i*2], "%02X", signature[i]);
+    }
+    std::string hexSignature = "";
+    for(int i=0;i<signature.length()*2;i++)
+        hexSignature +=converted[i];
+
+    pblock->publicKey  = uint256S(publicKey);
+    pblock->sig  = uint256S(hexSignature);
+    LogPrint(BCLog::BENCH, "sig is : %s \n",hexSignature);
     //pblock->publicKey      = publicKey;
     //pblock->sig         = privateKey;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
