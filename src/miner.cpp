@@ -363,8 +363,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewMicroBlock(const CScrip
     }
     CKey key1;
     bool valid = false;
-    //key1.Set(buffer.begin(),buffer.end(),valid);
-    key1.MakeNewKey(true);
+    key1.Set(buffer.begin(),buffer.end(),valid);
+    //key1.MakeNewKey(true);
     std::vector<unsigned char> signedHeader;
     key1.Sign(headerhash,signedHeader);
     //convert from unsigned to hex//
